@@ -1,0 +1,240 @@
+name: Release Math Holiday answer figures v2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/release-mathholiday-answer-figures-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install image tools
+        run: python -m pip install --upgrade pillow
+      - name: Apply release transform
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python <<'PY'
+          import base64
+          import hashlib
+          import json
+          import re
+          from io import BytesIO
+          from pathlib import Path
+
+          from PIL import Image
+
+          ROOT = Path('.')
+          FIG_DIR = ROOT / 'source_materials' / 'figures'
+          FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+          data = json.loads((ROOT / 'docs/data/olympiad_database_full_backup.json').read_text(encoding='utf-8'))
+          problems = data['problems']
+          by_id = {p['id']: p for p in problems}
+
+          def decode_png(data_uri):
+              return base64.b64decode(data_uri.split(',', 1)[1])
+
+          def png_data_uri(raw):
+              return 'data:image/png;base64,' + base64.b64encode(raw).decode('ascii')
+
+          def crop_fig(problem_id, fig_index, box, filename, alt):
+              raw = decode_png(by_id[problem_id]['figures'][fig_index]['dataUri'])
+              out = FIG_DIR / filename
+              with Image.open(BytesIO(raw)) as im:
+                  im.crop(box).save(out, format='PNG')
+              return {'type': 'image', 'alt': alt, 'dataUri': png_data_uri(out.read_bytes())}
+
+          existing = {
+              'MP-2016-6-3': list(by_id['MP-2016-6-3'].get('figures', [])),
+              'MP-2019-6-2': list(by_id['MP-2019-6-2'].get('figures', [])),
+              'MP-2019-6-4': list(by_id['MP-2019-6-4'].get('figures', [])),
+              'MP-2019-6-6': list(by_id['MP-2019-6-6'].get('figures', [])),
+          }
+
+          made = {}
+          def make(key, *args):
+              made[key] = crop_fig(*args)
+
+          make('2015_6_1_statement', 'MP-2015-6-1', 0, (440, 95, 595, 240), 'mp_2015_6_1_statement_plan.png', 'План четырёх пересекающихся тропинок')
+          make('2015_6_1_answer', 'MP-2015-6-1', 0, (80, 300, 600, 445), 'mp_2015_6_1_answer_examples.png', 'Примеры посадки четырёх яблонь')
+          make('2015_6_2_statement', 'MP-2015-6-2', 0, (485, 470, 595, 570), 'mp_2015_6_2_statement_circles.png', 'Пять пустых кружочков для цифр')
+          make('2015_6_2_answer', 'MP-2015-6-2', 0, (485, 635, 600, 745), 'mp_2015_6_2_answer_digits.png', 'Единственная расстановка цифр 1, 2, 3, 9, 9')
+          make('2015_6_2_solution', 'MP-2015-6-2', 1, (420, 55, 600, 260), 'mp_2015_6_2_solution_cases.png', 'Два случая в доказательстве единственности')
+          make('2015_6_3_solution', 'MP-2015-6-3', 0, (465, 705, 590, 830), 'mp_2015_6_3_solution_circle_scheme.png', 'Круговая схема из официального комментария')
+          make('2015_6_4_statement', 'MP-2015-6-4', 0, (465, 55, 595, 155), 'mp_2015_6_4_statement_hexagon.png', 'Исходный шестиугольник на треугольной сетке')
+          make('2015_6_4_answer', 'MP-2015-6-4', 0, (460, 160, 600, 260), 'mp_2015_6_4_answer_cut.png', 'Официальное разрезание шестиугольника')
+          make('2015_6_6_statement', 'MP-2015-6-6', 0, (465, 645, 595, 790), 'mp_2015_6_6_statement_frame.png', 'Картина с рамкой шириной в одну клетку')
+          make('2015_6_6_solution', 'MP-2015-6-6', 1, (420, 180, 545, 390), 'mp_2015_6_6_solution_inner_frame.png', 'Внутренняя рамка в решении')
+          make('2017_6_1_statement', 'MP-2017-6-1', 0, (190, 240, 480, 405), 'mp_2017_6_1_statement_field.png', 'Участок с капустой и козами')
+          make('2017_6_1_answer', 'MP-2017-6-1', 0, (85, 525, 335, 695), 'mp_2017_6_1_answer_fence.png', 'Дополнительные заборы общей длиной 650 м')
+          make('2017_6_1_solution', 'MP-2017-6-1', 0, (345, 520, 590, 680), 'mp_2017_6_1_solution_paths.png', 'Пунктирные пути для нижней оценки')
+          make('2017_6_4_statement', 'MP-2017-6-4', 0, (85, 105, 315, 325), 'mp_2017_6_4_statement_shape.png', 'Исходная фигура для разрезания')
+          make('2017_6_4_answer', 'MP-2017-6-4', 0, (345, 105, 550, 325), 'mp_2017_6_4_answer_cut.png', 'Официальное разрезание на 12 частей')
+          make('2018_6_1_statement', 'MP-2018-6-1', 0, (220, 210, 455, 415), 'mp_2018_6_1_statement_web.png', 'Паутина с 12 узелками')
+          make('2018_6_1_answer', 'MP-2018-6-1', 0, (95, 500, 565, 700), 'mp_2018_6_1_answer_examples.png', 'Два примера расположения мух и комаров')
+          make('2018_6_3_solution_1', 'MP-2018-6-3', 0, (165, 690, 520, 735), 'mp_2018_6_3_solution_first_scheme.png', 'Первая схема движения автобуса')
+          make('2018_6_3_solution_2', 'MP-2018-6-3', 1, (155, 160, 520, 215), 'mp_2018_6_3_solution_second_scheme.png', 'Вторая схема движения автобуса')
+          make('2018_6_4_solution', 'MP-2018-6-4', 0, (85, 735, 585, 845), 'mp_2018_6_4_solution_table.png', 'Таблица ответов для чисел 18, 40 и 56')
+          make('2018_6_6_answer', 'MP-2018-6-6', 0, (80, 195, 570, 345), 'mp_2018_6_6_answer_cuts.png', 'Примеры разрезаний квадрата 9×9')
+          make('2018_6_6_solution', 'MP-2018-6-6', 0, (250, 475, 425, 625), 'mp_2018_6_6_solution_perimeter_idea.png', 'Идея с частью C между частями A и B')
+
+          updates = {
+              'MP-2015-6-1': {'figures': [made['2015_6_1_statement']], 'answerFigures': [made['2015_6_1_answer']]},
+              'MP-2015-6-2': {'figures': [made['2015_6_2_statement']], 'answerFigures': [made['2015_6_2_answer']], 'solutionFigures': [made['2015_6_2_solution']]},
+              'MP-2015-6-3': {'solutionFigures': [made['2015_6_3_solution']]},
+              'MP-2015-6-4': {'figures': [made['2015_6_4_statement']], 'answerFigures': [made['2015_6_4_answer']]},
+              'MP-2015-6-6': {'figures': [made['2015_6_6_statement']], 'solutionFigures': [made['2015_6_6_solution']]},
+              'MP-2016-6-3': {'figures': [existing['MP-2016-6-3'][0]], 'answerFigures': [existing['MP-2016-6-3'][1]]},
+              'MP-2017-6-1': {'figures': [made['2017_6_1_statement']], 'answerFigures': [made['2017_6_1_answer']], 'solutionFigures': [made['2017_6_1_solution']]},
+              'MP-2017-6-4': {'figures': [made['2017_6_4_statement']], 'answerFigures': [made['2017_6_4_answer']]},
+              'MP-2018-6-1': {'figures': [made['2018_6_1_statement']], 'answerFigures': [made['2018_6_1_answer']]},
+              'MP-2018-6-3': {'solutionFigures': [made['2018_6_3_solution_1'], made['2018_6_3_solution_2']]},
+              'MP-2018-6-4': {'solutionFigures': [made['2018_6_4_solution']]},
+              'MP-2018-6-6': {'answerFigures': [made['2018_6_6_answer']], 'solutionFigures': [made['2018_6_6_solution']]},
+              'MP-2019-6-2': {'figures': [existing['MP-2019-6-2'][0]], 'answerFigures': [existing['MP-2019-6-2'][1]], 'solutionFigures': [existing['MP-2019-6-2'][2]]},
+              'MP-2019-6-4': {'figures': [existing['MP-2019-6-4'][0]], 'answerFigures': [existing['MP-2019-6-4'][1]]},
+              'MP-2019-6-6': {'solutionFigures': [existing['MP-2019-6-6'][0]]},
+          }
+
+          for problem_id, fields in updates.items():
+              p = by_id[problem_id]
+              for key in ('figures', 'answerFigures', 'solutionFigures'):
+                  p.pop(key, None)
+              for key, value in fields.items():
+                  if value:
+                      p[key] = value
+
+          full_json = json.dumps(data, ensure_ascii=False, indent=2) + '\n'
+          problems_json = json.dumps(problems, ensure_ascii=False, indent=2) + '\n'
+          compact_data = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+
+          def patch_html(text):
+              text = text.replace("function figHtml(p){return (p.figures||[]).map", "function figHtml(p,field='figures'){return (p[field]||[]).map")
+              old_modal = """${p.answer?`<details><summary>Ответ</summary><p class=\"statement\">${esc(p.answer)}</p></details>`:''}${p.solution?`<details><summary>Решение</summary><p class=\"statement\">${esc(p.solution)}</p>${p.solutionSourceName?`<p class=\"small\">Сверено с: ${esc(p.solutionSourceName)}</p>`:''}</details>`:''}"""
+              new_modal = """${(p.answer||(p.answerFigures||[]).length)?`<details><summary>Ответ</summary>${p.answer?`<p class=\"statement\">${esc(p.answer)}</p>`:''}${figHtml(p,'answerFigures')}</details>`:''}${(p.solution||(p.solutionFigures||[]).length)?`<details><summary>Решение</summary>${p.solution?`<p class=\"statement\">${esc(p.solution)}</p>`:''}${figHtml(p,'solutionFigures')}${p.solutionSourceName?`<p class=\"small\">Сверено с: ${esc(p.solutionSourceName)}</p>`:''}</details>`:''}"""
+              text = text.replace(old_modal, new_modal)
+              old_worksheet = """const figs=o.includeFigures?figHtml(p):''; const ans=o.includeAnswers&&p.answer?`<details ${print?'open':''}><summary>Ответ</summary><div class=\"statement\">${esc(p.answer)}</div></details>`:''; const sol=o.includeSolutions&&p.solution?`<details ${print?'open':''}><summary>Решение</summary><div class=\"statement\">${esc(p.solution)}</div></details>`:'';"""
+              new_worksheet = """const figs=o.includeFigures?figHtml(p):''; const ans=o.includeAnswers&&(p.answer||(p.answerFigures||[]).length)?`<details ${print?'open':''}><summary>Ответ</summary>${p.answer?`<div class=\"statement\">${esc(p.answer)}</div>`:''}${figHtml(p,'answerFigures')}</details>`:''; const sol=o.includeSolutions&&(p.solution||(p.solutionFigures||[]).length)?`<details ${print?'open':''}><summary>Решение</summary>${p.solution?`<div class=\"statement\">${esc(p.solution)}</div>`:''}${figHtml(p,'solutionFigures')}</details>`:'';"""
+              text = text.replace(old_worksheet, new_worksheet)
+              text = re.sub(r'const DATA = .*?;\nconst CAN_EDIT', lambda m: 'const DATA = ' + compact_data + ';\nconst CAN_EDIT', text, count=1, flags=re.S)
+              if "function figHtml(p,field='figures')" not in text or "figHtml(p,'answerFigures')" not in text or "figHtml(p,'solutionFigures')" not in text:
+                  raise RuntimeError('HTML renderer was not patched for answerFigures/solutionFigures')
+              return text
+
+          for rel_path, content in {
+              'docs/data/olympiad_database_full_backup.json': full_json,
+              'current_release/olympiad_database_full_backup.json': full_json,
+              'docs/data/olympiad_problems_237.json': problems_json,
+              'current_release/olympiad_problems_237.json': problems_json,
+          }.items():
+              (ROOT / rel_path).write_text(content, encoding='utf-8', newline='\n')
+
+          for rel_path in ['docs/index.html', 'docs/admin.html', 'current_release/olympiad_public_readonly.html', 'current_release/olympiad_taxonomy_prototype.html']:
+              path = ROOT / rel_path
+              path.write_text(patch_html(path.read_text(encoding='utf-8')), encoding='utf-8', newline='\n')
+
+          for rel_path in ['.github/workflows/release-mathholiday-answer-figures.yml', '.github/workflows/release-mathholiday-answer-figures-v2.yml']:
+              path = ROOT / rel_path
+              if path.exists():
+                  path.unlink()
+
+          def include(path):
+              return path.is_file() and '.git' not in path.parts and path.name != 'checksums.sha256'
+
+          lines = []
+          for path in sorted(p for p in ROOT.rglob('*') if include(p)):
+              rel = path.relative_to(ROOT).as_posix()
+              lines.append(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {rel}')
+          (ROOT / 'checksums.sha256').write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
+          print('Applied Math Holiday answer figure release')
+          PY
+      - name: Verify static bundle
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python tools/verify_static_bundle.py
+      - name: Verify Math Holiday figure placement
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python <<'PY'
+          import json
+          from pathlib import Path
+          bad_words = ['ответ', 'решение', 'официальный пример', 'таблица ответов', 'пример с пятью', 'вариант разрезания', 'варианты разрезания', 'примеры разрезаний', 'единственная расстановка']
+          data = json.loads(Path('docs/data/olympiad_database_full_backup.json').read_text(encoding='utf-8'))
+          issues = []
+          for p in data['problems']:
+              if not str(p.get('id', '')).startswith('MP-'):
+                  continue
+              for f in p.get('figures', []):
+                  alt = f.get('alt', '').lower()
+                  if any(w in alt for w in bad_words):
+                      issues.append((p['id'], f.get('alt', '')))
+          p = next(x for x in data['problems'] if x['id'] == 'MP-2016-6-3')
+          if len(p.get('figures', [])) != 1 or len(p.get('answerFigures', [])) != 1:
+              issues.append(('MP-2016-6-3', 'wrong figure split'))
+          if len(data['problems']) != 237 or len(data.get('sources', [])) != 51:
+              issues.append(('database', f"counts {len(data['problems'])}/{len(data.get('sources', []))}"))
+          if issues:
+              for item in issues:
+                  print(item)
+              raise SystemExit(1)
+          print('Math Holiday figure placement OK')
+          PY
+      - name: Commit release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git status --short
+          if [ -n "$(git status --porcelain)" ]; then
+            git add checksums.sha256 \
+              current_release/olympiad_database_full_backup.json \
+              current_release/olympiad_problems_237.json \
+              current_release/olympiad_public_readonly.html \
+              current_release/olympiad_taxonomy_prototype.html \
+              docs/admin.html \
+              docs/data/olympiad_database_full_backup.json \
+              docs/data/olympiad_problems_237.json \
+              docs/index.html \
+              source_materials/figures/mp_2015_6_1_answer_examples.png \
+              source_materials/figures/mp_2015_6_1_statement_plan.png \
+              source_materials/figures/mp_2015_6_2_answer_digits.png \
+              source_materials/figures/mp_2015_6_2_solution_cases.png \
+              source_materials/figures/mp_2015_6_2_statement_circles.png \
+              source_materials/figures/mp_2015_6_3_solution_circle_scheme.png \
+              source_materials/figures/mp_2015_6_4_answer_cut.png \
+              source_materials/figures/mp_2015_6_4_statement_hexagon.png \
+              source_materials/figures/mp_2015_6_6_solution_inner_frame.png \
+              source_materials/figures/mp_2015_6_6_statement_frame.png \
+              source_materials/figures/mp_2017_6_1_answer_fence.png \
+              source_materials/figures/mp_2017_6_1_solution_paths.png \
+              source_materials/figures/mp_2017_6_1_statement_field.png \
+              source_materials/figures/mp_2017_6_4_answer_cut.png \
+              source_materials/figures/mp_2017_6_4_statement_shape.png \
+              source_materials/figures/mp_2018_6_1_answer_examples.png \
+              source_materials/figures/mp_2018_6_1_statement_web.png \
+              source_materials/figures/mp_2018_6_3_solution_first_scheme.png \
+              source_materials/figures/mp_2018_6_3_solution_second_scheme.png \
+              source_materials/figures/mp_2018_6_4_solution_table.png \
+              source_materials/figures/mp_2018_6_6_answer_cuts.png \
+              source_materials/figures/mp_2018_6_6_solution_perimeter_idea.png \
+              .github/workflows/release-mathholiday-answer-figures.yml \
+              .github/workflows/release-mathholiday-answer-figures-v2.yml
+            git commit -m "Move Math Holiday answer figures to spoilers"
+            git push origin HEAD:main
+          else
+            echo "No changes to commit."
+          fi
