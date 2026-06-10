@@ -1,0 +1,19 @@
+{
+  "project": "База олимпиадных задач 5–7",
+  "checkpoint": "GITHUB-PAGES-BG-PREVIEW-UI-2026-06-10-237",
+  "problemCount": 237,
+  "sourceCount": 51,
+  "pagesSource": "docs/",
+  "publicEntry": "docs/index.html",
+  "editableEntry": "docs/admin.html",
+  "dataFiles": [
+    "docs/data/olympiad_problems_237.json",
+    "docs/data/olympiad_database_full_backup.json",
+    "docs/data/olympiad_source_catalog.json"
+  ],
+  "notes": [
+    "HTML files are standalone and embed DATA directly.",
+    "JSON files are canonical backups for import/export and future rebuilds.",
+    "admin.html uses localStorage only; it does not write back to GitHub automatically."
+  ]
+}
