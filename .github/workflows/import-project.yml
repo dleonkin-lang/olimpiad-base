@@ -1,0 +1,50 @@
+name: Import project bundle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download verified bundle
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o "$RUNNER_TEMP/project.zip" "https://tmpfiles.org/dl/wCwFcfayAii8/olimpiad-base-upload.zip"
+          echo "9d49546f06129403d1552e2dc37a9843b4f5bf8a798940fe62824e8465c21f7f  $RUNNER_TEMP/project.zip" | sha256sum -c -
+
+      - name: Replace repository contents
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/project"
+          unzip -q "$RUNNER_TEMP/project.zip" -d "$RUNNER_TEMP/project"
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          shopt -s dotglob nullglob
+          cp -a "$RUNNER_TEMP/project"/. .
+          rm -f .github/workflows/import-project.yml
+
+      - name: Verify static bundle
+        run: |
+          set -euo pipefail
+          PYTHONIOENCODING=utf-8 python3 tools/verify_static_bundle.py
+
+      - name: Commit imported project
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          git commit -m "Initial deploy of olympiad task database"
+          git push
