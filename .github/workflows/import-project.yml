@@ -21,8 +21,8 @@ jobs:
       - name: Download verified bundle
         run: |
           set -euo pipefail
-          curl -L --fail --retry 3 -o "$RUNNER_TEMP/project.zip" "https://tmpfiles.org/dl/wCwFcfayAii8/olimpiad-base-upload.zip"
-          echo "9d49546f06129403d1552e2dc37a9843b4f5bf8a798940fe62824e8465c21f7f  $RUNNER_TEMP/project.zip" | sha256sum -c -
+          curl -L --fail --retry 3 -o "$RUNNER_TEMP/project.zip" "https://tmpfiles.org/dl/wSwQcXagg4A3/olimpiad-base-upload-posix.zip"
+          echo "f497ee0167ed3d76280dd585c16972146c916ec4404c8a17bd1405b1d7c8929d  $RUNNER_TEMP/project.zip" | sha256sum -c -
 
       - name: Replace repository contents
         run: |
