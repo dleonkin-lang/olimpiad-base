@@ -2,7 +2,7 @@
 
 Small FastAPI service for building worksheet PDFs from selected tasks. It is meant to run outside GitHub Pages, for example on Cloud Run.
 
-The static site sends structured worksheet JSON to `POST /build-pdf`. The service does not accept raw TeX: it escapes task text, writes selected PNG/JPEG data-URI figures to a temporary directory, generates `worksheet.tex`, and compiles it with `xelatex`.
+The static site sends structured worksheet JSON to `POST /build-pdf` or `POST /build-tex`. The service does not accept raw TeX: it escapes task text, writes selected PNG/JPEG data-URI figures to a temporary directory, generates `worksheet.tex`, and either compiles it with `xelatex` or returns the TeX source.
 
 ## Local run
 
@@ -16,6 +16,13 @@ Health check:
 ```bash
 curl http://localhost:8080/healthz
 ```
+
+Build endpoints:
+
+- `POST /build-pdf` returns `worksheet.pdf`.
+- `POST /build-tex` returns `worksheet.tex`.
+
+The TeX download is the editable source generated from the same worksheet template. When figures are enabled, the TeX source references generated image filenames; a future TeX bundle export can package those images together with the source.
 
 ## Cloud Run
 
