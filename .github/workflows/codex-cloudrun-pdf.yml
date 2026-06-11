@@ -1,0 +1,110 @@
+name: Codex Cloud Run PDF HTML patch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/codex-cloudrun-pdf.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch HTML and checksums
+        run: |
+          cat > /tmp/patch_cloudrun_pdf_html.py <<'PY'
+          from pathlib import Path
+          import hashlib
+          import re
+          
+          files = [
+              Path('docs/index.html'),
+              Path('docs/admin.html'),
+              Path('current_release/olympiad_public_readonly.html'),
+              Path('current_release/olympiad_taxonomy_prototype.html'),
+          ]
+          
+          insert_after = "function downloadTextFile(name,text,type='text/plain;charset=utf-8'){const blob=new Blob([text],{type}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0);}"
+          
+          pdf_js = r"""
+          const PDF_API_STORE='olympiad_pdf_api_url';
+          function worksheetPdfApiUrl(){return (localStorage.getItem(PDF_API_STORE)||'').trim();}
+          function worksheetSetPdfApiUrl(url){const clean=String(url||'').trim().replace(/\/+$/,''); if(clean)localStorage.setItem(PDF_API_STORE,clean); else localStorage.removeItem(PDF_API_STORE);}
+          function worksheetConfigurePdfServer(){const current=worksheetPdfApiUrl(); const next=prompt('\u0410\u0434\u0440\u0435\u0441 PDF-\u0441\u0435\u0440\u0432\u0435\u0440\u0430 Cloud Run',current); if(next===null)return; worksheetSetPdfApiUrl(next); showToast(worksheetPdfApiUrl()?'PDF-\u0441\u0435\u0440\u0432\u0435\u0440 \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d':'PDF-\u0441\u0435\u0440\u0432\u0435\u0440 \u043e\u0447\u0438\u0449\u0435\u043d');}
+          function worksheetBaseName(){return (state.worksheetTitle||'worksheet').toLowerCase().replace(/[^a-z\u0430-\u044f0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,60)||'worksheet';}
+          function worksheetFigurePayload(figures){return (figures||[]).filter(f=>f&&f.dataUri).map(f=>({dataUri:f.dataUri,alt:f.alt||''}));}
+          function worksheetSubtopicLabels(p){return subtopicEntries(p).map(e=>(e.topic?topicTitle(e.topic)+' \u2192 ':'')+e.subtopic);}
+          function worksheetPdfPayload(){syncWorksheetOptionsFromDom(); const o=worksheetOptions(); const problems=worksheetProblems().map(p=>({id:p.id||'',title:p.title||'',statement:p.statement||'',statementOriginal:p.statementOriginal||'',sourceName:p.sourceName||sourceTitle(p.sourceId||p.source),sourceProblemNumber:p.sourceProblemNumber||'',grade:p.grade||[],difficulty:p.difficulty||null,figures:o.includeFigures?worksheetFigurePayload(p.figures):[],answer:o.includeAnswers?(p.answer||''):'',answerFigures:o.includeAnswers?worksheetFigurePayload(p.answerFigures):[],solution:o.includeSolutions?(p.solution||''):'',solutionFigures:o.includeSolutions?worksheetFigurePayload(p.solutionFigures):[],topics:o.showTags?(p.topics||[]).map(topicTitle):[],methods:o.showTags?(p.methods||[]).map(methodTitle):[],subtopicLabels:o.showTags?worksheetSubtopicLabels(p):[]})); return {title:state.worksheetTitle||'\u041b\u0438\u0441\u0442\u043e\u043a \u0437\u0430\u0434\u0430\u0447',subtitle:state.worksheetSubtitle||'',options:{showSources:!!o.showSources,showTags:!!o.showTags,includeFigures:!!o.includeFigures,includeAnswers:!!o.includeAnswers,includeSolutions:!!o.includeSolutions,language:o.language||'ru',columns:Number(o.columns)===2?2:1,space:o.space||'none'},problems};}
+          async function worksheetDownloadPdf(){if(!worksheetProblems().length){alert('\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0445\u043e\u0442\u044f \u0431\u044b \u043e\u0434\u043d\u0443 \u0437\u0430\u0434\u0430\u0447\u0443.'); return;} let api=worksheetPdfApiUrl(); if(!api){const next=prompt('\u0410\u0434\u0440\u0435\u0441 PDF-\u0441\u0435\u0440\u0432\u0435\u0440\u0430 Cloud Run',''); if(next===null)return; worksheetSetPdfApiUrl(next); api=worksheetPdfApiUrl();} if(!api){alert('\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0443\u043a\u0430\u0436\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441 PDF-\u0441\u0435\u0440\u0432\u0435\u0440\u0430.'); return;} const button=document.querySelector('[data-worksheet-download-pdf]'); const oldText=button?button.textContent:''; if(button){button.disabled=true; button.textContent='\u0421\u043e\u0431\u0438\u0440\u0430\u044e PDF...';} try{const res=await fetch(api.replace(/\/+$/,'')+'/build-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(worksheetPdfPayload())}); if(!res.ok){let msg=await res.text(); throw new Error((msg||('HTTP '+res.status)).slice(0,1200));} const blob=await res.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=worksheetBaseName()+'.pdf'; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0); showToast('PDF \u0433\u043e\u0442\u043e\u0432');}catch(err){alert('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u0442\u044c PDF: '+(err&&err.message?err.message:err));}finally{if(button){button.disabled=false; button.textContent=oldText||'\u0421\u043a\u0430\u0447\u0430\u0442\u044c PDF \u0447\u0435\u0440\u0435\u0437 TeX';}}}
+          """.strip()
+          
+          controls_pattern = re.compile(r'<div class="chips"><button class="btn primary" data-worksheet-print="1">[^<]*</button><button class="btn" data-worksheet-download-html="1">[^<]*</button></div>')
+          new_controls = r'<div class="chips"><button class="btn primary" data-worksheet-print="1">\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043f\u0435\u0447\u0430\u0442\u043d\u0443\u044e \u0432\u0435\u0440\u0441\u0438\u044e</button><button class="btn primary" data-worksheet-download-pdf="1">\u0421\u043a\u0430\u0447\u0430\u0442\u044c PDF \u0447\u0435\u0440\u0435\u0437 TeX</button><button class="btn" data-worksheet-download-html="1">\u0421\u043a\u0430\u0447\u0430\u0442\u044c HTML</button><button class="btn" data-worksheet-pdf-server="1">PDF-\u0441\u0435\u0440\u0432\u0435\u0440</button></div>'.replace(r'\"', '"')
+          preview_pattern = re.compile(r'<button class="btn primary" data-worksheet-print="1">[^<]*</button></div><div id="worksheetPreview"')
+          new_preview_prefix = r'<div class="chips"><button class="btn primary" data-worksheet-print="1">\u041f\u0435\u0447\u0430\u0442\u044c / PDF</button><button class="btn primary" data-worksheet-download-pdf="1">PDF \u0447\u0435\u0440\u0435\u0437 TeX</button></div></div><div id="worksheetPreview"'.replace(r'\"', '"')
+          old_click = "if(x=e.target.closest('[data-worksheet-print]')){worksheetOpenPrint();return;} if(x=e.target.closest('[data-worksheet-download-html]')){worksheetDownloadHtml();return;}"
+          new_click = "if(x=e.target.closest('[data-worksheet-print]')){worksheetOpenPrint();return;} if(x=e.target.closest('[data-worksheet-download-pdf]')){worksheetDownloadPdf();return;} if(x=e.target.closest('[data-worksheet-pdf-server]')){worksheetConfigurePdfServer();return;} if(x=e.target.closest('[data-worksheet-download-html]')){worksheetDownloadHtml();return;}"
+          
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              if 'function worksheetPdfPayload' not in text:
+                  if insert_after not in text:
+                      raise SystemExit(f'{path}: insert point not found')
+                  if old_click not in text:
+                      raise SystemExit(f'{path}: click handler not found')
+                  text = text.replace(insert_after, insert_after + '\n' + pdf_js, 1)
+                  text, n_controls = controls_pattern.subn(lambda _m: new_controls, text, count=1)
+                  text, n_preview = preview_pattern.subn(lambda _m: new_preview_prefix, text, count=1)
+                  text = text.replace(old_click, new_click, 1)
+                  if n_controls != 1:
+                      raise SystemExit(f'{path}: controls replacements={n_controls}')
+                  if n_preview != 1:
+                      raise SystemExit(f'{path}: preview replacements={n_preview}')
+                  path.write_text(text, encoding='utf-8', newline='')
+          
+          approved_new = {
+              'project_docs/TEX_PDF_SERVER.md',
+              'server/tex-pdf-service/.dockerignore',
+              'server/tex-pdf-service/Dockerfile',
+              'server/tex-pdf-service/README.md',
+              'server/tex-pdf-service/app.py',
+              'server/tex-pdf-service/requirements.txt',
+          }
+          manifest = Path('checksums.sha256')
+          entries = {}
+          for line in manifest.read_text(encoding='utf-8').splitlines():
+              if not line.strip():
+                  continue
+              digest, rel = line.split(None, 1)
+              entries[rel.replace('\\', '/')] = digest
+          for rel in approved_new:
+              entries.setdefault(rel, '')
+          for rel in list(entries):
+              path = Path(rel)
+              if not path.exists():
+                  raise SystemExit(f'manifest path missing: {rel}')
+              entries[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+          manifest.write_text(''.join(f'{entries[rel]}  {rel}\n' for rel in sorted(entries)), encoding='utf-8', newline='')
+          PY
+          python /tmp/patch_cloudrun_pdf_html.py
+      - name: Validate static bundle
+        run: |
+          python -m py_compile server/tex-pdf-service/app.py
+          python tools/verify_static_bundle.py
+      - name: Commit release
+        run: |
+          git config user.name "codex"
+          git config user.email "codex@users.noreply.github.com"
+          git rm --ignore-unmatch .github/workflows/codex-cloudrun-pdf.yml
+          git add docs/index.html docs/admin.html current_release/olympiad_public_readonly.html current_release/olympiad_taxonomy_prototype.html checksums.sha256
+          git status --short
+          git commit -m "Add TeX PDF worksheet interface"
+          git push
